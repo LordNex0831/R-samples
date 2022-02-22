@@ -42,6 +42,6 @@ for(i in feature_new$features){
   mean_data<-rbind(mean_data,mean_val)
   sd_data<-rbind(sd_data,sd_val)
 }
-# Combining features,mean and standard data frames
+#Combining features,mean and standard data frames into a tidy dataset
 data2<-cbind(feature_data,mean_data,sd_data)
 colnames(data2)<-c('Feature_Description','Mean','Standard_deviation')
