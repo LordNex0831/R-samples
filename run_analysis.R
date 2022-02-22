@@ -10,4 +10,3 @@ y<-rbind(y_train,y_test)
 colnames(y)<-"Result"
 #The combined dataset containig all X and y values
 data<-cbind(X,y)
-
