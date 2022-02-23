@@ -1,47 +1,68 @@
-#Combining X_train and X_test
-X<-rbind(X_train,X_test)
-#Renaming the columns of X using the features dataset provided
-for(i in 1:ncol(X)){
-  colnames(X)[i]=as.character(features[['V2']][[i]])
-}
-# Combining y_train and y_test
-y<-rbind(y_train,y_test)
-#Renaming y column to "Result"
-colnames(y)<-"Result"
-#The combined dataset containig all X and y values
-data<-cbind(X,y)
+library(reshape2)
 
-#Now, we extract all columns with mean or standard deviaiton
-pattern<-'[Mm]ean|std' #Pattern to be detected
-feature_new<-data.frame(features=character(),
-                        stringsAsFactors = FALSE)
-#count=0
-for(i in 1:nrow(features)){
-  val<-as.character(features[['V2']][[i]])
-  if(isTRUE(str_detect(val,pattern))){
-    #print(paste(val,"matches"))
-    #count=count+1
-    #print(count)
-    feature_new$features<-as.character(feature_new$features)
-    feature_new[nrow(feature_new) + 1,]<-val
-    feature_new$features<-as.factor(feature_new$features)
-    #feature_new<-rbind(feature_new,val)
-  }
+
+#1. get dataset from web
+rawDataDir <- "./rawData"
+rawDataUrl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+rawDataFilename <- "rawData.zip"
+rawDataDFn <- paste(rawDataDir, "/", "rawData.zip", sep = "")
+dataDir <- "./data"
+
+if (!file.exists(rawDataDir)) {
+  dir.create(rawDataDir)
+  download.file(url = rawDataUrl, destfile = rawDataDFn)
+}
+if (!file.exists(dataDir)) {
+  dir.create(dataDir)
+  unzip(zipfile = rawDataDFn, exdir = dataDir)
 }
 
-#Creating empty frames to store feature name, mean and standard deviaiton for each column
-feature_data<-data.frame()
-mean_data<-data.frame()
-sd_data<-data.frame()
-#Calculating mean and standard deviation
-for(i in feature_new$features){
-  feature_val<-data.frame(i)
-  mean_val<-data.frame(mean(X[[i]]))
-  sd_val<-data.frame(sd(X[[i]]))
-  feature_data<-rbind(feature_data,feature_val)
-  mean_data<-rbind(mean_data,mean_val)
-  sd_data<-rbind(sd_data,sd_val)
-}
-#Combining features,mean and standard data frames into a tidy dataset
-data2<-cbind(feature_data,mean_data,sd_data)
-colnames(data2)<-c('Feature_Description','Mean','Standard_deviation')
+
+#2. merge {train, test} data set
+# refer: http://archive.ics.uci.edu/ml/datasets/Human+Activity+Recognition+Using+Smartphones
+# train data
+x_train <- read.table(paste(sep = "", dataDir, "/UCI HAR Dataset/train/X_train.txt"))
+y_train <- read.table(paste(sep = "", dataDir, "/UCI HAR Dataset/train/Y_train.txt"))
+s_train <- read.table(paste(sep = "", dataDir, "/UCI HAR Dataset/train/subject_train.txt"))
+
+# test data
+x_test <- read.table(paste(sep = "", dataDir, "/UCI HAR Dataset/test/X_test.txt"))
+y_test <- read.table(paste(sep = "", dataDir, "/UCI HAR Dataset/test/Y_test.txt"))
+s_test <- read.table(paste(sep = "", dataDir, "/UCI HAR Dataset/test/subject_test.txt"))
+
+# merge {train, test} data
+x_data <- rbind(x_train, x_test)
+y_data <- rbind(y_train, y_test)
+s_data <- rbind(s_train, s_test)
+
+
+#3. load feature & activity info
+# feature info
+feature <- read.table(paste(sep = "", dataDir, "/UCI HAR Dataset/features.txt"))
+
+# activity labels
+a_label <- read.table(paste(sep = "", dataDir, "/UCI HAR Dataset/activity_labels.txt"))
+a_label[,2] <- as.character(a_label[,2])
+
+# extract feature cols & names named 'mean, std'
+selectedCols <- grep("-(mean|std).*", as.character(feature[,2]))
+selectedColNames <- feature[selectedCols, 2]
+selectedColNames <- gsub("-mean", "Mean", selectedColNames)
+selectedColNames <- gsub("-std", "Std", selectedColNames)
+selectedColNames <- gsub("[-()]", "", selectedColNames)
+
+
+#4. extract data by cols & using descriptive name
+x_data <- x_data[selectedCols]
+allData <- cbind(s_data, y_data, x_data)
+colnames(allData) <- c("Subject", "Activity", selectedColNames)
+
+allData$Activity <- factor(allData$Activity, levels = a_label[,1], labels = a_label[,2])
+allData$Subject <- as.factor(allData$Subject)
+
+
+#5. generate tidy data set
+meltedData <- melt(allData, id = c("Subject", "Activity"))
+tidyData <- dcast(meltedData, Subject + Activity ~ variable, mean)
+
+write.table(tidyData, "./tidy_dataset.txt", row.names = FALSE, quote = FALSE)
